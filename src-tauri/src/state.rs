@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Notify;
 
+use crate::ai::AiProvider;
 use crate::brain::cognitive::CognitiveEngine;
 use crate::brain::embeddings::EmbeddingModel;
 use crate::brain::persistence::BrainPersistence;
@@ -26,6 +27,7 @@ pub struct AppSettings {
     pub theme: String,               // "dark" | "light" | "system"
     pub auto_start: bool,
     pub privacy_mode: bool,
+    pub onboarded: bool,
 }
 
 impl Default for AppSettings {
@@ -39,6 +41,7 @@ impl Default for AppSettings {
             theme: "dark".to_string(),
             auto_start: false,
             privacy_mode: false,
+            onboarded: false,
         }
     }
 }
@@ -65,6 +68,7 @@ pub struct AppState {
     pub persistence: Arc<BrainPersistence>,
     pub indexer: Arc<FileIndexer>,
     pub context: Arc<ContextManager>,
+    pub ai_provider: RwLock<Option<Box<dyn AiProvider>>>,
     pub settings: RwLock<AppSettings>,
     pub shutdown: Notify,
 }
@@ -123,15 +127,42 @@ impl AppState {
             .join("files.db");
         let indexer = FileIndexer::new(index_db, embeddings.clone())?;
 
+        let ai_provider = Self::build_ai_provider(&settings);
+
         Ok(Self {
             engine: Arc::new(engine),
             embeddings,
             persistence: Arc::new(persistence),
             indexer: Arc::new(indexer),
             context: Arc::new(ContextManager::new()),
+            ai_provider: RwLock::new(ai_provider),
             settings: RwLock::new(settings),
             shutdown: Notify::new(),
         })
+    }
+
+    /// Build an AI provider from current settings
+    pub fn build_ai_provider(settings: &AppSettings) -> Option<Box<dyn AiProvider>> {
+        match settings.ai_provider.as_str() {
+            "ollama" => Some(Box::new(
+                crate::ai::ollama::OllamaProvider::new(&settings.ollama_model),
+            )),
+            "claude" => {
+                if let Some(ref key) = settings.claude_api_key {
+                    if !key.is_empty() {
+                        return Some(Box::new(crate::ai::claude::ClaudeProvider::new(key)));
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Refresh the AI provider (call after settings change)
+    pub fn refresh_ai_provider(&self) {
+        let settings = self.settings.read().clone();
+        *self.ai_provider.write() = Self::build_ai_provider(&settings);
     }
 
     /// Persist current state to disk

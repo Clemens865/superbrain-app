@@ -194,7 +194,7 @@ impl FileIndexer {
         Ok(file_chunks.len() as u32)
     }
 
-    /// Scan and index all files in watched directories
+    /// Scan and index all files in watched directories (recursive)
     pub async fn scan_all(&self) -> Result<u32, String> {
         {
             let is_indexing = self.is_indexing.read();
@@ -207,22 +207,23 @@ impl FileIndexer {
         let dirs: Vec<PathBuf> = self.watched_dirs.read().clone();
         let mut total = 0u32;
 
+        // Collect all files recursively first
+        let mut files = Vec::new();
         for dir in &dirs {
-            if let Ok(entries) = std::fs::read_dir(dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file() {
-                        match self.index_file(&path).await {
-                            Ok(chunks) => total += chunks,
-                            Err(e) => tracing::warn!("Failed to index {:?}: {}", path, e),
-                        }
-                    }
-                }
+            collect_files_recursive(dir, &mut files, 10);
+        }
+
+        tracing::info!("Found {} files to index", files.len());
+
+        for path in &files {
+            match self.index_file(path).await {
+                Ok(chunks) => total += chunks,
+                Err(e) => tracing::debug!("Skipped {:?}: {}", path, e),
             }
         }
 
         *self.is_indexing.write() = false;
-        tracing::info!("Indexed {} chunks from {} directories", total, dirs.len());
+        tracing::info!("Indexed {} chunks from {} files", total, files.len());
         Ok(total)
     }
 
@@ -314,4 +315,54 @@ fn bytes_to_vector(bytes: &[u8]) -> Vec<f32> {
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
+}
+
+/// Directories to skip during recursive scanning
+const SKIP_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    ".git",
+    ".svn",
+    ".hg",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".cache",
+    "build",
+    "dist",
+    ".Trash",
+    "Library",
+];
+
+/// Recursively collect files, skipping hidden/undesirable directories
+fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>, max_depth: u32) {
+    if max_depth == 0 {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // Skip hidden files/dirs
+        if name_str.starts_with('.') {
+            continue;
+        }
+
+        if path.is_dir() {
+            // Skip known undesirable directories
+            if SKIP_DIRS.contains(&name_str.as_ref()) {
+                continue;
+            }
+            collect_files_recursive(&path, files, max_depth - 1);
+        } else if path.is_file() {
+            files.push(path);
+        }
+    }
 }

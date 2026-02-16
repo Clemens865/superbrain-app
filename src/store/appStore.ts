@@ -53,6 +53,7 @@ interface Settings {
   theme: string;
   auto_start: boolean;
   privacy_mode: boolean;
+  onboarded: boolean;
 }
 
 interface SearchResults {

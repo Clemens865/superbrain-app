@@ -8,7 +8,7 @@ use std::path::Path;
 const SUPPORTED_EXTENSIONS: &[&str] = &[
     "md", "txt", "rs", "ts", "tsx", "js", "jsx", "py", "json", "toml", "yaml", "yml", "html",
     "css", "sh", "bash", "zsh", "fish", "swift", "go", "java", "c", "cpp", "h", "hpp", "rb",
-    "lua", "sql", "xml", "csv", "log", "conf", "cfg", "ini", "env",
+    "lua", "sql", "xml", "csv", "log", "conf", "cfg", "ini", "env", "pdf",
 ];
 
 /// Check if a file extension is supported for indexing
@@ -28,7 +28,12 @@ pub fn parse_file(path: &Path) -> Result<String, String> {
         return Err(format!("Unsupported file type: {}", ext));
     }
 
-    // Read file content
+    // PDF gets special binary handling
+    if ext == "pdf" {
+        return parse_pdf(path);
+    }
+
+    // Read file content as text
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read {:?}: {}", path, e))?;
 
@@ -38,6 +43,17 @@ pub fn parse_file(path: &Path) -> Result<String, String> {
         "html" | "xml" => parse_markup(&content),
         _ => Ok(clean_text(&content)),
     }
+}
+
+/// Parse a PDF file and extract text
+fn parse_pdf(path: &Path) -> Result<String, String> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| format!("Failed to read PDF {:?}: {}", path, e))?;
+
+    let text = pdf_extract::extract_text_from_mem(&bytes)
+        .map_err(|e| format!("Failed to extract PDF text: {}", e))?;
+
+    Ok(clean_text(&text))
 }
 
 /// Clean raw text content
@@ -102,9 +118,9 @@ mod tests {
         assert!(is_supported("ts"));
         assert!(is_supported("py"));
         assert!(is_supported("md"));
+        assert!(is_supported("pdf"));
         assert!(!is_supported("exe"));
         assert!(!is_supported("png"));
-        assert!(!is_supported("pdf"));
     }
 
     #[test]

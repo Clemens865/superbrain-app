@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::ai::AiProvider;
 use crate::state::{AppSettings, AppState, SystemStatus};
 
 // ---- Think / Chat ----
@@ -20,9 +21,68 @@ pub struct ThinkResponse {
 pub async fn think(input: String, state: State<'_, AppState>) -> Result<ThinkResponse, String> {
     let embedding = state.embeddings.embed(&input).await?;
 
-    // First, get memory-based response
+    // Get memory-based response and recall relevant memories
     let brain_result = state.engine.think_with_embedding(&input, &embedding)?;
+    let memories = state.engine.recall_f32(&embedding, Some(5), None).unwrap_or_default();
 
+    // Try AI-enhanced response if a provider is configured
+    let ai_provider_name = state.ai_provider.read().as_ref().map(|p| p.name().to_string());
+    if let Some(_provider_name) = ai_provider_name {
+        // Clone what we need, then drop the lock before awaiting
+        let ai_result = {
+            let provider_guard = state.ai_provider.read();
+            if let Some(ref provider) = *provider_guard {
+                // We need to drop the guard before awaiting, so check availability first
+                let provider_ref: &dyn crate::ai::AiProvider = provider.as_ref();
+                // Unfortunately we can't hold the guard across await, so we build
+                // a quick non-async check here and do the generate outside
+                Some(provider_ref.name().to_string())
+            } else {
+                None
+            }
+        };
+
+        if ai_result.is_some() {
+            // Re-acquire and generate (the provider is behind RwLock, can't hold across await)
+            // Instead, extract what we need to call the provider
+            let settings = state.settings.read().clone();
+            let ai_response = match settings.ai_provider.as_str() {
+                "ollama" => {
+                    let provider = crate::ai::ollama::OllamaProvider::new(&settings.ollama_model);
+                    provider.generate(&input, &memories).await
+                }
+                "claude" => {
+                    if let Some(ref key) = settings.claude_api_key {
+                        let provider = crate::ai::claude::ClaudeProvider::new(key);
+                        provider.generate(&input, &memories).await
+                    } else {
+                        Err("No Claude API key".to_string())
+                    }
+                }
+                _ => Err("No AI provider".to_string()),
+            };
+
+            if let Ok(ai_resp) = ai_response {
+                // Store the AI interaction as an episodic memory
+                let _ = state.engine.remember_with_embedding(
+                    format!("Q: {} A: {}", input, &ai_resp.content[..ai_resp.content.len().min(200)]),
+                    embedding,
+                    "episodic".to_string(),
+                    Some(0.5),
+                );
+
+                return Ok(ThinkResponse {
+                    response: ai_resp.content,
+                    confidence: brain_result.confidence,
+                    thought_id: brain_result.thought_id,
+                    memory_count: brain_result.memory_count,
+                    ai_enhanced: true,
+                });
+            }
+        }
+    }
+
+    // Fallback: memory-only response
     Ok(ThinkResponse {
         response: brain_result.response,
         confidence: brain_result.confidence,
@@ -110,6 +170,7 @@ pub fn get_status(state: State<'_, AppState>) -> Result<SystemStatus, String> {
     let introspection = state.engine.introspect();
     let settings = state.settings.read();
     let embedding_provider = format!("{:?}", state.embeddings.provider());
+    let ai_available = state.ai_provider.read().is_some();
 
     let index_stats = state.indexer.stats().unwrap_or(crate::indexer::IndexStats {
         file_count: 0,
@@ -124,7 +185,7 @@ pub fn get_status(state: State<'_, AppState>) -> Result<SystemStatus, String> {
         thought_count: introspection.total_thoughts,
         uptime_ms: introspection.uptime_ms,
         ai_provider: settings.ai_provider.clone(),
-        ai_available: true,
+        ai_available,
         embedding_provider,
         learning_trend: introspection.learning_trend,
         indexed_files: index_stats.file_count,
@@ -145,6 +206,9 @@ pub fn update_settings(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     *state.settings.write() = settings.clone();
+
+    // Refresh AI provider with new settings
+    state.refresh_ai_provider();
 
     // Persist
     let json = serde_json::to_string(&settings).map_err(|e| format!("Serialize error: {}", e))?;
@@ -233,6 +297,28 @@ pub async fn run_workflow(
         &state.context,
     )
     .await
+}
+
+// ---- Check Ollama ----
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OllamaStatus {
+    pub available: bool,
+    pub models: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn check_ollama() -> Result<OllamaStatus, String> {
+    match crate::ai::ollama::list_models("http://localhost:11434").await {
+        Ok(models) => Ok(OllamaStatus {
+            available: true,
+            models,
+        }),
+        Err(_) => Ok(OllamaStatus {
+            available: false,
+            models: vec![],
+        }),
+    }
 }
 
 // ---- Flush (save to disk) ----

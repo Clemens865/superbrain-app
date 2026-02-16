@@ -5,6 +5,7 @@ import ResultsList from "./components/ResultsList";
 import QuickActions from "./components/QuickActions";
 import MemoryFeed from "./components/MemoryFeed";
 import Settings from "./components/Settings";
+import Onboarding from "./components/Onboarding";
 import { useAppStore } from "./store/appStore";
 
 type View = "search" | "settings";
@@ -12,10 +13,11 @@ type View = "search" | "settings";
 function App() {
   const [view, setView] = useState<View>("search");
   const [expanded, setExpanded] = useState(false);
-  const { query, results, isSearching, loadStatus } = useAppStore();
+  const { query, results, isSearching, loadStatus, loadSettings, settings } = useAppStore();
 
   useEffect(() => {
     loadStatus();
+    loadSettings();
 
     // Listen for navigation events from tray
     const unlisten = listen<string>("navigate", (event) => {
@@ -36,7 +38,7 @@ function App() {
       unlisten.then((fn) => fn());
       unlistenShow.then((fn) => fn());
     };
-  }, [loadStatus]);
+  }, [loadStatus, loadSettings]);
 
   // Expand when we have results or query
   useEffect(() => {
@@ -44,6 +46,15 @@ function App() {
       setExpanded(true);
     }
   }, [query, results]);
+
+  // Show onboarding on first launch
+  if (settings && !settings.onboarded) {
+    return (
+      <div className="w-full h-[480px] bg-brain-bg/95 backdrop-blur-xl rounded-2xl border border-brain-border overflow-hidden animate-fade-in">
+        <Onboarding />
+      </div>
+    );
+  }
 
   if (view === "settings") {
     return (

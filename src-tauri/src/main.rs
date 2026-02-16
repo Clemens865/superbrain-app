@@ -141,6 +141,7 @@ pub fn run() {
             commands::search_files,
             commands::index_files,
             commands::run_workflow,
+            commands::check_ollama,
             commands::flush,
         ])
         .run(tauri::generate_context!())
