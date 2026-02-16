@@ -133,9 +133,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Hide window on blur (click outside)
+            // Hide window on blur (click outside), but ignore blur events
+            // that fire immediately after show (caused by shortcut key release)
             if let tauri::WindowEvent::Focused(false) = event {
-                let _ = window.hide();
+                if overlay::should_hide_on_blur() {
+                    let _ = window.hide();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![

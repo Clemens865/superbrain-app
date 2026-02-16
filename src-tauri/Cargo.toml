@@ -72,7 +72,7 @@ codegen-units = 1
 strip = true
 
 [profile.dev]
-opt-level = 1
+opt-level = 0
 
 [features]
 default = ["custom-protocol"]
