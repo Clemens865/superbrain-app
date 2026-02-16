@@ -14,7 +14,6 @@
     "global-shortcut:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
-    "shell:default",
-    "updater:default"
+    "shell:default"
   ]
 }

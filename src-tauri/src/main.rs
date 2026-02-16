@@ -30,7 +30,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // Auto-update: uncomment after generating signing key with `cargo tauri signer generate`
+        // .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Set activation policy to accessory (menu bar only, no dock icon)
             #[cfg(target_os = "macos")]
