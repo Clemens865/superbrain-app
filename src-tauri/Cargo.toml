@@ -1,0 +1,72 @@
+[package]
+name = "superbrain-app"
+version = "0.1.0"
+edition = "2021"
+description = "SuperBrain - Intelligent macOS cognitive layer"
+license = "MIT"
+
+[lib]
+name = "superbrain_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "superbrain-app"
+path = "src/main.rs"
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Persistence
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+
+# AI providers
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+async-trait = "0.1"
+
+# File system watching
+notify = "7"
+
+# Parallelism and performance
+rayon = "1.10"
+parking_lot = "0.12"
+tokio = { version = "1", features = ["full"] }
+
+# Data structures
+dashmap = "6"
+smallvec = "1.13"
+ahash = "0.8"
+
+# Serialization
+bincode = "1"
+
+# Random and math
+rand = "0.8"
+
+# Utilities
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "fast-rng"] }
+dirs = "6"
+chrono = { version = "0.4", features = ["serde"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
