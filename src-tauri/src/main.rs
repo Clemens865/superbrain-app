@@ -67,7 +67,27 @@ pub fn run() {
 
             // Start file watcher for indexed directories
             let indexer_ref = app.state::<AppState>().indexer.clone();
-            let watch_dirs = indexer::watcher::default_watch_dirs();
+            let custom_dirs: Vec<std::path::PathBuf> = app
+                .state::<AppState>()
+                .settings
+                .read()
+                .indexed_folders
+                .iter()
+                .map(std::path::PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            let watch_dirs = if custom_dirs.is_empty() {
+                indexer::watcher::default_watch_dirs()
+            } else {
+                // Merge defaults with custom dirs
+                let mut all = indexer::watcher::default_watch_dirs();
+                for d in custom_dirs {
+                    if !all.contains(&d) {
+                        all.push(d);
+                    }
+                }
+                all
+            };
             indexer_ref.add_watch_dirs(watch_dirs.clone());
             match indexer::watcher::start_watcher(watch_dirs) {
                 Ok((_watcher, mut rx)) => {
@@ -180,6 +200,8 @@ pub fn run() {
             commands::index_files,
             commands::run_workflow,
             commands::check_ollama,
+            commands::get_clipboard_history,
+            commands::add_indexed_folder,
             commands::flush,
         ])
         .run(tauri::generate_context!())

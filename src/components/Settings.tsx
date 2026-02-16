@@ -6,8 +6,9 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack }: SettingsProps) {
-  const { settings, loadSettings, updateSettings, status } = useAppStore();
+  const { settings, loadSettings, updateSettings, status, addIndexedFolder } = useAppStore();
   const [localSettings, setLocalSettings] = useState(settings);
+  const [newFolder, setNewFolder] = useState("");
 
   useEffect(() => {
     loadSettings();
@@ -114,6 +115,77 @@ export default function Settings({ onBack }: SettingsProps) {
               { value: "light", label: "Light" },
               { value: "system", label: "System" },
             ]}
+          />
+        </Section>
+
+        {/* Indexed Folders */}
+        <Section title="Indexed Folders">
+          <div className="space-y-2 mb-2">
+            {(localSettings?.indexed_folders ?? []).length === 0 ? (
+              <p className="text-brain-text/40 text-xs">
+                Default: ~/Documents, ~/Desktop, ~/Downloads
+              </p>
+            ) : (
+              (localSettings?.indexed_folders ?? []).map((folder, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="flex-1 text-brain-text text-xs bg-brain-bg px-3 py-1.5 rounded-lg border border-brain-border truncate">
+                    {folder}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const updated = localSettings!.indexed_folders.filter((_, idx) => idx !== i);
+                      setLocalSettings({ ...localSettings!, indexed_folders: updated });
+                    }}
+                    className="text-brain-text/30 hover:text-brain-error text-xs transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newFolder}
+              onChange={(e) => setNewFolder(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newFolder.trim()) {
+                  addIndexedFolder(newFolder.trim());
+                  setLocalSettings({
+                    ...localSettings!,
+                    indexed_folders: [...(localSettings?.indexed_folders ?? []), newFolder.trim()],
+                  });
+                  setNewFolder("");
+                }
+              }}
+              placeholder="Paste folder path..."
+              className="flex-1 bg-brain-bg text-white text-xs px-3 py-1.5 rounded-lg border border-brain-border outline-none focus:border-brain-accent/50"
+            />
+            <button
+              onClick={() => {
+                if (newFolder.trim()) {
+                  addIndexedFolder(newFolder.trim());
+                  setLocalSettings({
+                    ...localSettings!,
+                    indexed_folders: [...(localSettings?.indexed_folders ?? []), newFolder.trim()],
+                  });
+                  setNewFolder("");
+                }
+              }}
+              className="px-3 py-1.5 bg-brain-surface text-brain-text text-xs rounded-lg border border-brain-border hover:border-brain-accent/30 transition-colors"
+            >
+              Add
+            </button>
+          </div>
+        </Section>
+
+        {/* Auto-Start */}
+        <Section title="Startup">
+          <Toggle
+            label="Start at login"
+            checked={localSettings?.auto_start ?? false}
+            onChange={(v) => setLocalSettings({ ...localSettings!, auto_start: v })}
           />
         </Section>
 

@@ -342,6 +342,43 @@ pub async fn check_ollama() -> Result<OllamaStatus, String> {
     }
 }
 
+// ---- Clipboard History ----
+
+#[tauri::command]
+pub fn get_clipboard_history(
+    limit: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::context::ClipboardEntry>, String> {
+    Ok(state.context.recent_clipboard(limit.unwrap_or(20) as usize))
+}
+
+// ---- Add Indexed Folder ----
+
+#[tauri::command]
+pub async fn add_indexed_folder(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<u32, String> {
+    let folder = std::path::PathBuf::from(&path);
+    if !folder.exists() || !folder.is_dir() {
+        return Err(format!("Directory does not exist: {}", path));
+    }
+
+    // Add to indexer's watch dirs
+    state.indexer.add_watch_dirs(vec![folder]);
+
+    // Update settings
+    {
+        let mut settings = state.settings.write();
+        if !settings.indexed_folders.contains(&path) {
+            settings.indexed_folders.push(path);
+        }
+    }
+
+    // Trigger re-scan
+    state.indexer.scan_all().await
+}
+
 // ---- Flush (save to disk) ----
 
 #[tauri::command]

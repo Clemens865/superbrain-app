@@ -36,8 +36,20 @@ export default function Onboarding() {
     }
   }, [step, checkOllama]);
 
+  const [indexing, setIndexing] = useState(false);
+  const [indexCount, setIndexCount] = useState<number | null>(null);
+
   const finish = useCallback(async () => {
     if (settings) {
+      // Trigger initial file index
+      setIndexing(true);
+      try {
+        const count = await invoke<number>("index_files");
+        setIndexCount(count);
+      } catch {
+        // Non-fatal - indexing can happen in background
+      }
+      setIndexing(false);
       await updateSettings({ ...settings, onboarded: true });
     }
   }, [settings, updateSettings]);
@@ -145,13 +157,22 @@ export default function Onboarding() {
             Press <span className="text-brain-accent font-medium">Cmd+Shift+Space</span> anytime to open SuperBrain.
           </p>
           <p className="text-brain-text/40 text-[10px] mb-8 max-w-[250px]">
-            Your files are being indexed in the background. Type anything to search or ask a question.
+            {indexing
+              ? "Indexing your files..."
+              : indexCount !== null
+              ? `Indexed ${indexCount} files from your Documents, Desktop, and Downloads.`
+              : "Click below to index your files and start using SuperBrain."}
           </p>
           <button
             onClick={finish}
-            className="px-6 py-2.5 bg-brain-accent text-white text-sm font-medium rounded-xl hover:bg-brain-accent/80 transition-colors"
+            disabled={indexing}
+            className={`px-6 py-2.5 text-white text-sm font-medium rounded-xl transition-colors ${
+              indexing
+                ? "bg-brain-accent/50 cursor-wait"
+                : "bg-brain-accent hover:bg-brain-accent/80"
+            }`}
           >
-            Start Using SuperBrain
+            {indexing ? "Indexing..." : "Start Using SuperBrain"}
           </button>
         </div>
       )}

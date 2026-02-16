@@ -62,6 +62,11 @@ interface SearchResults {
   thinkResult: ThinkResult | null;
 }
 
+interface ClipboardEntry {
+  content: string;
+  timestamp: number;
+}
+
 interface AppState {
   query: string;
   results: SearchResults;
@@ -69,8 +74,11 @@ interface AppState {
   recentMemories: Memory[];
   status: SystemStatus | null;
   settings: Settings | null;
+  clipboardHistory: ClipboardEntry[];
+  mode: "search" | "remember";
 
   setQuery: (query: string) => void;
+  setMode: (mode: "search" | "remember") => void;
   search: (query: string) => Promise<void>;
   searchFiles: (query: string) => Promise<FileResult[]>;
   runWorkflow: (action: string, query?: string) => Promise<WorkflowResult>;
@@ -79,6 +87,9 @@ interface AppState {
   loadStatus: () => Promise<void>;
   loadSettings: () => Promise<void>;
   updateSettings: (settings: Settings) => Promise<void>;
+  loadClipboardHistory: () => Promise<void>;
+  addIndexedFolder: (path: string) => Promise<void>;
+  indexFiles: () => Promise<void>;
   clearResults: () => void;
 }
 
@@ -89,8 +100,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   recentMemories: [],
   status: null,
   settings: null,
+  clipboardHistory: [],
+  mode: "search",
 
   setQuery: (query: string) => set({ query }),
+  setMode: (mode: "search" | "remember") => set({ mode }),
 
   search: async (query: string) => {
     set({ query, isSearching: true });
@@ -164,6 +178,34 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ settings });
     } catch (error) {
       console.error("Failed to update settings:", error);
+    }
+  },
+
+  loadClipboardHistory: async () => {
+    try {
+      const history = await invoke<ClipboardEntry[]>("get_clipboard_history", { limit: 20 });
+      set({ clipboardHistory: history });
+    } catch (error) {
+      console.error("Failed to load clipboard history:", error);
+    }
+  },
+
+  addIndexedFolder: async (path: string) => {
+    try {
+      await invoke("add_indexed_folder", { path });
+      get().loadSettings();
+      get().loadStatus();
+    } catch (error) {
+      console.error("Failed to add folder:", error);
+    }
+  },
+
+  indexFiles: async () => {
+    try {
+      await invoke("index_files");
+      get().loadStatus();
+    } catch (error) {
+      console.error("Failed to index files:", error);
     }
   },
 
