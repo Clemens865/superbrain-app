@@ -144,6 +144,7 @@ superbrain-app/
 | `get_settings` / `update_settings` | App configuration |
 | `get_thoughts` / `get_stats` | Cognitive engine introspection |
 | `evolve` / `cycle` | Trigger learning evolution / cognitive cycle |
+| `check_ollama` | Detect Ollama availability and list models |
 | `flush` | Persist all state to disk |
 
 ## Test Coverage
@@ -172,16 +173,20 @@ superbrain-app/
 - [x] **Phase 5: OS Integration** — File watcher (notify), chunker (512/128), parser (35+ ext), clipboard context, 4 workflows
 - [x] **Phase 6: Polish** — Zero warnings, 38 tests passing, frontend builds clean
 
+### Recently Added (v0.2.0)
+
+- [x] **AI-Enhanced Think** — Ollama/Claude wired into `think` command with memory context, stores interactions as episodic memories
+- [x] **Recursive File Scanning** — Walks subdirectories (max depth 10), skips node_modules/.git/target/etc.
+- [x] **PDF Support** — PDF text extraction via `pdf-extract` crate (36+ file types now)
+- [x] **First-Launch Onboarding** — 3-step wizard: welcome, AI detection (auto-detects Ollama), ready
+- [x] **Dynamic AI Provider** — Settings changes refresh the AI provider without restart
+
 ### Roadmap
 
 - [ ] **ONNX Embeddings** — Load `all-MiniLM-L6-v2` model for true semantic similarity (currently using hash-based)
-- [ ] **AI-Enhanced Think** — Wire Ollama/Claude into the `think` command for LLM-augmented responses with memory context
 - [ ] **Code Signing** — Apple Developer certificate, notarization, DMG packaging
 - [ ] **Auto-Update** — `tauri-plugin-updater` with GitHub Releases backend
-- [ ] **First-Launch Onboarding** — Wizard: welcome, detect Ollama, select folders, set hotkey
 - [ ] **Battery-Aware Throttling** — Reduce cognitive cycle frequency on battery power
-- [ ] **Recursive File Scanning** — Currently indexes top-level files only in watched dirs
-- [ ] **PDF Support** — Add PDF text extraction to the file parser
 - [ ] **macOS Keychain** — Store Claude API key in Keychain instead of SQLite
 - [ ] **Universal Binary** — arm64 + x86_64 fat binary for Intel Macs
 
